@@ -59,10 +59,11 @@ void setup(){
   Serial.println("Jenny Kill Switch Online");
   
   wdt_reset();
-  wdt_enable(WDTO_1S);
+  //wdt_enable(WDTO_1S);
 }
 
 void loop(){
+  wdt_reset();
   if(millis() - lastCheckin > MAX_TIME_WITHOUT_OK){
     if(systemState != DISCONNECTED){
       setLED(LED_RED);
@@ -76,7 +77,7 @@ void loop(){
     if(radio.ACKRequested())
     {
       radio.sendACK();
-      Serial.println("ACK sent");
+      //Serial.println("ACK sent");
     }
     if(radio.DATALEN > 1){
       Serial.print("Unknown Message: ");
@@ -108,6 +109,7 @@ void loop(){
         }
       }else if(message == GREEN){
         if(systemState != GREEN){
+          digitalWrite(PAUSE_PIN, LOW);
           setLED(LED_GRN);
           turnOnRelay();
           systemState = GREEN;
