@@ -33,7 +33,6 @@
 
 #define DEBUG true
 
-int failCount = 0;
 volatile char systemState;
 
 unsigned long lastBlink = 0;
@@ -159,21 +158,20 @@ void checkIn(){
 //If we fail to send packet or fail to get a response, time out and go to DISCONNECTED system state
 void sendPacket(char* thingToSend)
 {
-  Serial.print("Sending: ");
-  Serial.println(thingToSend);
+  //Serial.print("Sending: ");
+  //Serial.println(thingToSend);
   
   boolean ackReceived = radio.sendWithRetry(TONODEID, thingToSend, 1, MAX_DELIVERY_FAILURES, BLOCKING_WAIT_TIME); //Only send 1 byte messages
   
   if(ackReceived){
-    Serial.println("ACK Received");
-    failCount = 0;
+    //Serial.println("ACK Received");
     if(systemState == DISCONNECTED){
       Serial.println("Connection Reestablished");
       setLED(LED_RED);
       systemState = RED; //Default to stop
     }
   }else{
-    Serial.println("No ACK");
+    //Serial.println("No ACK");
     if(systemState != DISCONNECTED){
       digitalWrite(LED_RED, HIGH);
       digitalWrite(LED_YLW, HIGH);
