@@ -28,13 +28,13 @@
 #define DISCONNECTED 'D'
 
 #define CHECKIN_PERIOD 25L
-#define BLOCKING_WAIT_TIME 10L
+#define BLOCKING_WAIT_TIME 10
 #define MAX_DELIVERY_FAILURES 3
 
 #define DEBUG true
 
-byte failCount = 0;
-char systemState;
+int failCount = 0;
+volatile char systemState;
 
 unsigned long lastBlink = 0;
 #define BLINK_RATE 500 //Amount of milliseconds for LEDs to toggle when disconnected
@@ -73,7 +73,7 @@ void setup(){
   }
   
   wdt_reset();
-  wdt_enable(WDTO_1S);
+  //wdt_enable(WDTO_1S);
   Serial.print("Remote Control Unit Ready");
 }
 
@@ -81,23 +81,24 @@ void loop(){
   timer.run();
   wdt_reset();
   
-  
-  if(digitalRead(BUTTON_RED) == HIGH) //Top priority (Red is NC to ground so high = pressed)
-  {
-    systemState = RED;
-    setLED(LED_RED); //Turn on LED
-    //Check the special case of hitting all three buttons
-    if (digitalRead(BUTTON_YLW) == LOW && digitalRead(BUTTON_GRN) == LOW) shutDown(); //Go into low power sleep mode
-  }
-  else if (digitalRead(BUTTON_YLW) == LOW)
-  {
-    systemState = YELLOW;
-    setLED(LED_YLW); //Turn on LED
-  }
-  else if (digitalRead(BUTTON_GRN) == LOW)
-  {
-    systemState = GREEN;
-    setLED(LED_GRN); //Turn on LED
+  if(!DEBUG){
+    if(digitalRead(BUTTON_RED) == HIGH) //Top priority (Red is NC to ground so high = pressed)
+    {
+      systemState = RED;
+      setLED(LED_RED); //Turn on LED
+      //Check the special case of hitting all three buttons
+      if (digitalRead(BUTTON_YLW) == LOW && digitalRead(BUTTON_GRN) == LOW) shutDown(); //Go into low power sleep mode
+    }
+    else if (digitalRead(BUTTON_YLW) == LOW)
+    {
+      systemState = YELLOW;
+      setLED(LED_YLW); //Turn on LED
+    }
+    else if (digitalRead(BUTTON_GRN) == LOW)
+    {
+      systemState = GREEN;
+      setLED(LED_GRN); //Turn on LED
+    }
   }
   
   if (Serial.available() > 0){
@@ -161,7 +162,7 @@ void sendPacket(char* thingToSend)
   Serial.print("Sending: ");
   Serial.println(thingToSend);
   
-  boolean ackReceived = radio.sendWithRetry(TONODEID, thingToSend, 1); //Only send 1 byte messages
+  boolean ackReceived = radio.sendWithRetry(TONODEID, thingToSend, 1, MAX_DELIVERY_FAILURES, BLOCKING_WAIT_TIME); //Only send 1 byte messages
   
   if(ackReceived){
     Serial.println("ACK Received");
@@ -174,15 +175,12 @@ void sendPacket(char* thingToSend)
   }else{
     Serial.println("No ACK");
     if(systemState != DISCONNECTED){
-      if(failCount++ > MAX_DELIVERY_FAILURES){
-        failCount = MAX_DELIVERY_FAILURES;
-        digitalWrite(LED_RED, HIGH);
-        digitalWrite(LED_YLW, HIGH);
-        digitalWrite(LED_GRN, HIGH);
-        systemState = DISCONNECTED;
-      }
+      digitalWrite(LED_RED, HIGH);
+      digitalWrite(LED_YLW, HIGH);
+      digitalWrite(LED_GRN, HIGH);
+      systemState = DISCONNECTED;
+      Serial.println("Setting Disconnected");
     }
-    radio.setModeIdle(); //This clears the buffer so that rf69.send() does not lock up
   }
 }
 
