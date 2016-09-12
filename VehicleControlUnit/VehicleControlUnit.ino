@@ -31,6 +31,8 @@ RFM69 radio;
 #define GREEN 'G'
 #define DISCONNECTED 'D'
 
+#define DEBUG false
+
 char systemState;
 
 void setup(){
@@ -63,79 +65,102 @@ void setup(){
 }
 
 void loop(){
-  wdt_reset();
-  if(millis() - lastCheckin > MAX_TIME_WITHOUT_OK){
-    if(systemState != DISCONNECTED){
-      setLED(LED_RED);
-      turnOffRelay();
-      systemState = DISCONNECTED;
-      Serial.println("Remote failed to check in. Turn off Relay");
-    }
-  }
-  
-  if(radio.receiveDone()){
-    if(radio.ACKRequested())
-    {
-      radio.sendACK();
-      //Serial.println("ACK sent");
-    }
-    if(radio.DATALEN > 1){
-      Serial.print("Unknown Message: ");
-      for (byte i = 0; i < radio.DATALEN; i++){
-        Serial.print((char)radio.DATA[i]);
-      }
-      Serial.println("");
-    }else{
-      char message = radio.DATA[0];
-      if (message == RED || message == YELLOW || message == GREEN || message == DISCONNECTED) lastCheckin = millis(); //Reset timeout
-      
-      if(message == RED){
-        if(systemState != RED){
-          setLED(LED_RED);
-          turnOffRelay();
-          systemState = RED;
-          Serial.println("Kill Jenny");
-          Serial.print("RSSI: ");
-          Serial.println(radio.RSSI);
-        }
-      }else if(message == YELLOW){
-        if(systemState != YELLOW){
-          setLED(LED_YLW);
-          digitalWrite(PAUSE_PIN, HIGH);
-          systemState = YELLOW;
-          Serial.println("Pause");
-          Serial.print("RSSI: ");
-          Serial.println(radio.RSSI);
-        }
-      }else if(message == GREEN){
-        if(systemState != GREEN){
-          digitalWrite(PAUSE_PIN, LOW);
-          setLED(LED_GRN);
-          turnOnRelay();
-          systemState = GREEN;
-          Serial.println("Enabled");
-          Serial.print("RSSI: ");
-          Serial.println(radio.RSSI);
-        }
-      }else if(message = DISCONNECTED){
+  if(!DEBUG){
+    wdt_reset();
+    if(millis() - lastCheckin > MAX_TIME_WITHOUT_OK){
+      if(systemState != DISCONNECTED){
         setLED(LED_RED);
         turnOffRelay();
         systemState = DISCONNECTED;
-        Serial.println("Reconnecting");
-        Serial.print("RSSI: ");
-        Serial.println(radio.RSSI);
+        Serial.println("Remote failed to check in. Turn off Relay");
       }
     }
+    
+    if(radio.receiveDone()){
+      if(radio.ACKRequested())
+      {
+        radio.sendACK();
+        //Serial.println("ACK sent");
+      }
+      if(radio.DATALEN > 1){
+        Serial.print("Unknown Message: ");
+        for (byte i = 0; i < radio.DATALEN; i++){
+          Serial.print((char)radio.DATA[i]);
+        }
+        Serial.println("");
+      }else{
+        char message = radio.DATA[0];
+        if (message == RED || message == YELLOW || message == GREEN || message == DISCONNECTED) lastCheckin = millis(); //Reset timeout
+        
+        if(message == RED){
+          if(systemState != RED){
+            setLED(LED_RED);
+            turnOffRelay();
+            systemState = RED;
+            Serial.println("Kill Jenny");
+            Serial.print("RSSI: ");
+            Serial.println(radio.RSSI);
+          }
+        }else if(message == YELLOW){
+          if(systemState != YELLOW){
+            setLED(LED_YLW);
+            digitalWrite(PAUSE_PIN, HIGH);
+            systemState = YELLOW;
+            Serial.println("Pause");
+            Serial.print("RSSI: ");
+            Serial.println(radio.RSSI);
+          }
+        }else if(message == GREEN){
+          if(systemState != GREEN){
+            digitalWrite(PAUSE_PIN, LOW);
+            setLED(LED_GRN);
+            turnOnRelay();
+            systemState = GREEN;
+            Serial.println("Enabled");
+            Serial.print("RSSI: ");
+            Serial.println(radio.RSSI);
+          }
+        }else if(message = DISCONNECTED){
+          setLED(LED_RED);
+          turnOffRelay();
+          systemState = DISCONNECTED;
+          Serial.println("Reconnecting");
+          Serial.print("RSSI: ");
+          Serial.println(radio.RSSI);
+        }
+      }
+    }
+  }else if(DEBUG){
+      if(Serial.available() > 0){
+        char input = Serial.read();
+        if(input == RED){  
+          systemState = RED;
+          setLED(LED_RED);
+          turnOffRelay();
+        }
+        else if(input == YELLOW)
+        {
+          systemState = YELLOW;
+          setLED(LED_YLW);
+        }
+        else if(input == GREEN)
+        {
+          systemState = GREEN;
+          setLED(LED_GRN);
+          turnOnRelay();
+        }
+    }
   }
+    
 }
   
   //Turns on a given LED
 void setLED(byte LEDnumber)
 {
-  digitalWrite(LED_RED, LOW);
-  digitalWrite(LED_YLW, LOW);
-  digitalWrite(LED_GRN, LOW);
-  digitalWrite(LEDnumber, HIGH);
+  digitalWrite(LED_RED, HIGH);
+  digitalWrite(LED_YLW, HIGH);
+  digitalWrite(LED_GRN, HIGH);
+  digitalWrite(LEDnumber, LOW);
 }
 
 //Turn on the relay

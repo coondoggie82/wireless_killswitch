@@ -31,7 +31,7 @@
 #define BLOCKING_WAIT_TIME 10
 #define MAX_DELIVERY_FAILURES 3
 
-#define DEBUG true
+#define DEBUG false
 
 volatile char systemState;
 
@@ -73,7 +73,7 @@ void setup(){
   
   wdt_reset();
   //wdt_enable(WDTO_1S);
-  Serial.print("Remote Control Unit Ready");
+  Serial.println("Remote Control Unit Ready");
 }
 
 void loop(){
@@ -167,6 +167,8 @@ void sendPacket(char* thingToSend)
     //Serial.println("ACK Received");
     if(systemState == DISCONNECTED){
       Serial.println("Connection Reestablished");
+      Serial.print("RSSI: ");
+      Serial.println(radio.RSSI);
       setLED(LED_RED);
       systemState = RED; //Default to stop
     }
