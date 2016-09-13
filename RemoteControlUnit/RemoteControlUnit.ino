@@ -170,17 +170,18 @@ void sendPacket(char* thingToSend)
     }
   }else{
     //Serial.println("No ACK");
+    failCount++;
     if(systemState != DISCONNECTED){
-      if(failCount++ > MAX_DELIVERY_FAILURES){
+      if(failCount > MAX_DELIVERY_FAILURES){
         digitalWrite(LED_RED, HIGH);
         digitalWrite(LED_YLW, HIGH);
         digitalWrite(LED_GRN, HIGH);
         systemState = DISCONNECTED;
         Serial.println("Setting Disconnected");
       }
-      Serial.print("Fail Count: ");
-      Serial.println(failCount);
     }
+    Serial.print("Fail Count: ");
+    Serial.println(failCount);
     radio.setModeIdle(); //This clears the buffer so that rf69.send() does not lock up
   }
 }

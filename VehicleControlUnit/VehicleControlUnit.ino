@@ -105,28 +105,31 @@ void loop(){
           Serial.println("Reconnecting");
           Serial.print("RSSI: ");
           Serial.println((radio.lastRssi(), DEC));
+          Serial.print("RX Good: ");
+          Serial.println(radio.rxGood());
+          Serial.print("RX Bad: ");
+          Serial.println(radio.rxBad());
         }
       }
     }
-  }else if(DEBUG){
-      if(Serial.available() > 0){
-        char input = Serial.read();
-        if(input == RED){  
-          systemState = RED;
-          setLED(LED_RED);
-          turnOffRelay();
-        }
-        else if(input == YELLOW)
-        {
-          systemState = YELLOW;
-          setLED(LED_YLW);
-        }
-        else if(input == GREEN)
-        {
-          systemState = GREEN;
-          setLED(LED_GRN);
-          turnOnRelay();
-        }
+    if(Serial.available() > 0){
+      char input = Serial.read();
+      if(input == RED){  
+        systemState = RED;
+        setLED(LED_RED);
+        turnOffRelay();
+      }
+      else if(input == YELLOW)
+      {
+        systemState = YELLOW;
+        setLED(LED_YLW);
+      }
+      else if(input == GREEN)
+      {
+        systemState = GREEN;
+        setLED(LED_GRN);
+        turnOnRelay();
+      }
     }
   }
     
@@ -159,7 +162,7 @@ void sendResponse()
   uint8_t response[] = "O"; //Send OK
   radio.send(response, sizeof(response));
   radio.waitPacketSent(50); //Block for 50ms before moving on
-  Serial.println("Sent a reply");
+  //Serial.println("Sent a reply");
 }
   
   
