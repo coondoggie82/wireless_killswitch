@@ -1,22 +1,15 @@
-#include <RFM69.h>
+#include <RH_RF69.h> //From: http://www.airspayce.com/mikem/arduino/RadioHead
 #include <SPI.h>
 #include <SimpleTimer.h> //https://github.com/jfturcot/SimpleTimer
 #include <avr/wdt.h> //We need watch dog for this program
 
-#define NETWORKID 42   // Must be the same for all nodes (0 to 255)
-#define MYNODEID 2   // My node ID (0 to 255) 1 = RCU | 2 = VCU 
-#define TONODEID 1   // Destination node ID (0 to 254, 255 = broadcast)
-
-#define FREQUENCY   RF69_433MHZ
-
-#define ENCRYPT       true // Set to "true" to use encryption
 #define ENCRYPTKEY    "CARROTANDTHEASS!" // Use the same 16-byte key on all nodes
 
 #define MAX_TIME_WITHOUT_OK 250L
 
 unsigned long lastCheckin = 0;
 
-RFM69 radio;
+RH_RF69 radio;
 
 #define RELAY_CONTROL 9
 #define PAUSE_PIN 6
@@ -36,9 +29,6 @@ RFM69 radio;
 char systemState;
 
 void setup(){
-  wdt_reset();
-  wdt_disable();
-  
   Serial.begin(9600);
   
   pinMode(RELAY_CONTROL, OUTPUT);
@@ -49,24 +39,21 @@ void setup(){
   pinMode(PAUSE_PIN, OUTPUT);
   digitalWrite(PAUSE_PIN, LOW); //Resume
   
-  radio.initialize(FREQUENCY, MYNODEID, NETWORKID);
-  radio.setHighPower();
-  if(ENCRYPT){
-    radio.encrypt(ENCRYPTKEY);
-  }
+  if(!radio.init()) Serial.println("Init Failed");
+  if(!radio.setFrequency(434.0)) Serial.println("Set Freq failed");
+  radio.setTxPower(20);
+  
+  radio.setEncryptionKey((uint8_t*)ENCRYPTKEY);
   
   systemState = RED; //On power up start in red state
   setLED(LED_RED);
 
   Serial.println("Jenny Kill Switch Online");
   
-  wdt_reset();
-  //wdt_enable(WDTO_1S);
 }
 
 void loop(){
   if(!DEBUG){
-    wdt_reset();
     if(millis() - lastCheckin > MAX_TIME_WITHOUT_OK){
       if(systemState != DISCONNECTED){
         setLED(LED_RED);
@@ -76,41 +63,32 @@ void loop(){
       }
     }
     
-    if(radio.receiveDone()){
-      if(radio.ACKRequested())
-      {
-        radio.sendACK();
-        //Serial.println("ACK sent");
-      }
-      if(radio.DATALEN > 1){
-        Serial.print("Unknown Message: ");
-        for (byte i = 0; i < radio.DATALEN; i++){
-          Serial.print((char)radio.DATA[i]);
-        }
-        Serial.println("");
-      }else{
-        char message = radio.DATA[0];
-        if (message == RED || message == YELLOW || message == GREEN || message == DISCONNECTED) lastCheckin = millis(); //Reset timeout
+    if(radio.available()){
+      uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
+      uint8_t len = sizeof(buf);
+      if(radio.recv(buf, &len)){
+        sendResponse(); //Ack the message
+        if (buf[0] == RED || buf[0] == YELLOW || buf[0] == GREEN || buf[0] == DISCONNECTED) lastCheckin = millis(); //Reset timeout
         
-        if(message == RED){
+        if(buf[0] == RED){
           if(systemState != RED){
             setLED(LED_RED);
             turnOffRelay();
             systemState = RED;
             Serial.println("Kill Jenny");
             Serial.print("RSSI: ");
-            Serial.println(radio.RSSI);
+            Serial.println((radio.lastRssi(), DEC));
           }
-        }else if(message == YELLOW){
+        }else if(buf[0] == YELLOW){
           if(systemState != YELLOW){
             setLED(LED_YLW);
             digitalWrite(PAUSE_PIN, HIGH);
             systemState = YELLOW;
             Serial.println("Pause");
             Serial.print("RSSI: ");
-            Serial.println(radio.RSSI);
+            Serial.println((radio.lastRssi(), DEC));
           }
-        }else if(message == GREEN){
+        }else if(buf[0] == GREEN){
           if(systemState != GREEN){
             digitalWrite(PAUSE_PIN, LOW);
             setLED(LED_GRN);
@@ -118,15 +96,15 @@ void loop(){
             systemState = GREEN;
             Serial.println("Enabled");
             Serial.print("RSSI: ");
-            Serial.println(radio.RSSI);
+            Serial.println((radio.lastRssi(), DEC));
           }
-        }else if(message = DISCONNECTED){
+        }else if(buf[0] = DISCONNECTED){
           setLED(LED_RED);
           turnOffRelay();
           systemState = DISCONNECTED;
           Serial.println("Reconnecting");
           Serial.print("RSSI: ");
-          Serial.println(radio.RSSI);
+          Serial.println((radio.lastRssi(), DEC));
         }
       }
     }
@@ -173,6 +151,15 @@ void turnOnRelay()
 void turnOffRelay()
 {
   digitalWrite(RELAY_CONTROL, LOW);
+}
+
+//If we receive a system state we send a response
+void sendResponse()
+{
+  uint8_t response[] = "O"; //Send OK
+  radio.send(response, sizeof(response));
+  radio.waitPacketSent(50); //Block for 50ms before moving on
+  Serial.println("Sent a reply");
 }
   
   

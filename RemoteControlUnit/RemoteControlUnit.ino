@@ -1,15 +1,8 @@
-#include <RFM69.h>
+#include <RH_RF69.h> //From: http://www.airspayce.com/mikem/arduino/RadioHead/
 #include <SPI.h>
 #include <SimpleTimer.h> //https://github.com/jfturcot/SimpleTimer
 #include <avr/wdt.h> //We need watch dog for this program
 
-#define NETWORKID 42   // Must be the same for all nodes (0 to 255)
-#define MYNODEID 1   // My node ID (0 to 255) 1 = RCU | 2 = VCU 
-#define TONODEID 2   // Destination node ID (0 to 254, 255 = broadcast)
-
-#define FREQUENCY   RF69_433MHZ
-
-#define ENCRYPT       true // Set to "true" to use encryption
 #define ENCRYPTKEY    "CARROTANDTHEASS!" // Use the same 16-byte key on all nodes
 
 #define BUTTON_RED 9
@@ -30,6 +23,7 @@
 #define CHECKIN_PERIOD 25L
 #define BLOCKING_WAIT_TIME 10
 #define MAX_DELIVERY_FAILURES 3
+byte failCount = 0;
 
 #define DEBUG false
 
@@ -38,7 +32,7 @@ volatile char systemState;
 unsigned long lastBlink = 0;
 #define BLINK_RATE 500 //Amount of milliseconds for LEDs to toggle when disconnected
 
-RFM69 radio;
+RH_RF69 radio;
 
 SimpleTimer timer;
 long secondTimerID;
@@ -64,21 +58,16 @@ void setup(){
 
   secondTimerID = timer.setInterval(CHECKIN_PERIOD, checkIn);
   
-  radio.initialize(FREQUENCY, MYNODEID, NETWORKID);
-  radio.setHighPower();
+  if(!radio.init()) Serial.println("init failed");
+  if(!radio.setFrequency(434.0)) Serial.println("Set Freq failed");
+  radio.setTxPower(20);
+  radio.setEncryptionKey((uint8_t*)ENCRYPTKEY);
   
-  if(ENCRYPT){
-    radio.encrypt(ENCRYPTKEY);
-  }
-  
-  wdt_reset();
-  //wdt_enable(WDTO_1S);
   Serial.println("Remote Control Unit Ready");
 }
 
 void loop(){
   timer.run();
-  wdt_reset();
   
   if(!DEBUG){
     if(digitalRead(BUTTON_RED) == HIGH) //Top priority (Red is NC to ground so high = pressed)
@@ -127,7 +116,6 @@ void shutDown(){
 }
 
 void checkIn(){
-  wdt_reset();
   
   if(systemState == RED)
   {
@@ -160,27 +148,40 @@ void sendPacket(char* thingToSend)
 {
   //Serial.print("Sending: ");
   //Serial.println(thingToSend);
+  radio.send((uint8_t*)thingToSend, sizeof(thingToSend));
+  radio.waitPacketSent(BLOCKING_WAIT_TIME);
+  boolean ackReceived = radio.waitAvailableTimeout(BLOCKING_WAIT_TIME); //wait for response
   
-  boolean ackReceived = radio.sendWithRetry(TONODEID, thingToSend, 1, MAX_DELIVERY_FAILURES, BLOCKING_WAIT_TIME); //Only send 1 byte messages
-  
+  //Read in any response from jenny
+  uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
+  uint8_t len = sizeof(buf);
+  if(radio.recv(buf, &len)){
+//    Serial.print("Got ACK: ");
+//    Serial.println((char*)buf);
+  }
   if(ackReceived){
-    //Serial.println("ACK Received");
+    failCount = 0;
     if(systemState == DISCONNECTED){
       Serial.println("Connection Reestablished");
-      Serial.print("RSSI: ");
-      Serial.println(radio.RSSI);
+      //Serial.print("RSSI: ");
+      //Serial.println(radio.RSSI);
       setLED(LED_RED);
       systemState = RED; //Default to stop
     }
   }else{
     //Serial.println("No ACK");
     if(systemState != DISCONNECTED){
-      digitalWrite(LED_RED, HIGH);
-      digitalWrite(LED_YLW, HIGH);
-      digitalWrite(LED_GRN, HIGH);
-      systemState = DISCONNECTED;
-      Serial.println("Setting Disconnected");
+      if(failCount++ > MAX_DELIVERY_FAILURES){
+        digitalWrite(LED_RED, HIGH);
+        digitalWrite(LED_YLW, HIGH);
+        digitalWrite(LED_GRN, HIGH);
+        systemState = DISCONNECTED;
+        Serial.println("Setting Disconnected");
+      }
+      Serial.print("Fail Count: ");
+      Serial.println(failCount);
     }
+    radio.setModeIdle(); //This clears the buffer so that rf69.send() does not lock up
   }
 }
 
