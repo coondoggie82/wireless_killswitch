@@ -98,7 +98,7 @@ void loop(){
             Serial.print("RSSI: ");
             Serial.println((radio.lastRssi(), DEC));
           }
-        }else if(buf[0] = DISCONNECTED){
+        }else if(buf[0] == DISCONNECTED){
           setLED(LED_RED);
           turnOffRelay();
           systemState = DISCONNECTED;
