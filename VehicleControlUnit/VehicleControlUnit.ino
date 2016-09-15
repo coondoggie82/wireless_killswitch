@@ -29,8 +29,8 @@ RH_RF69 radio;
 char systemState;
 
 void setup(){
+  wdt_disable();
   Serial.begin(9600);
-  
   pinMode(RELAY_CONTROL, OUTPUT);
   turnOffRelay(); //During power up turn off power
   pinMode(LED_RED, OUTPUT);
@@ -49,10 +49,12 @@ void setup(){
   setLED(LED_RED);
 
   Serial.println("Jenny Kill Switch Online");
-  
+  wdt.reset();
+  wdt.enable(WDTO_120MS);
 }
 
 void loop(){
+  wdt_reset();
   if(!DEBUG){
     if(millis() - lastCheckin > MAX_TIME_WITHOUT_OK){
       if(systemState != DISCONNECTED){
